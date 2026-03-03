@@ -1,0 +1,1734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DUNGEON SERPENT</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=MedievalSharp&family=IM+Fell+English:ital@0;1&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --stone: #12100e;
+    --stone2: #1e1a16;
+    --stone3: #2e2820;
+    --gold: #c9a84c;
+    --gold2: #e8c96a;
+    --red: #c0392b;
+    --green: #27ae60;
+    --blue: #2980b9;
+    --purple: #8e44ad;
+    --torch: #e67e22;
+    --text: #d4c4a0;
+    --dim: #8a7a60;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--stone);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: 
+      repeating-linear-gradient(0deg, transparent, transparent 40px, rgba(0,0,0,0.15) 40px, rgba(0,0,0,0.15) 41px),
+      repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(0,0,0,0.15) 40px, rgba(0,0,0,0.15) 41px);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #game-wrapper {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+  }
+
+  #title {
+    font-family: 'IM Fell English', serif;
+    font-size: 2rem;
+    color: var(--gold);
+    text-align: center;
+    letter-spacing: 0.2em;
+    text-shadow: 0 0 20px rgba(201,168,76,0.5), 0 2px 4px rgba(0,0,0,0.8);
+    margin-bottom: 12px;
+  }
+
+  #subtitle {
+    font-size: 0.7rem;
+    color: var(--dim);
+    text-align: center;
+    letter-spacing: 0.15em;
+    margin-bottom: 16px;
+    font-style: italic;
+  }
+
+  #canvas-container {
+    position: relative;
+    border: 3px solid var(--stone3);
+    box-shadow: 0 0 30px rgba(0,0,0,0.8), inset 0 0 20px rgba(0,0,0,0.5), 0 0 1px var(--gold);
+  }
+
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+  }
+
+  /* Torch flicker overlay */
+  #canvas-container::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(10,8,6,0.4) 100%);
+    pointer-events: none;
+    animation: flicker 3s ease-in-out infinite alternate;
+  }
+
+  @keyframes flicker {
+    0% { opacity: 0.7; }
+    25% { opacity: 1; }
+    50% { opacity: 0.85; }
+    75% { opacity: 0.95; }
+    100% { opacity: 0.8; }
+  }
+
+  #sidebar {
+    width: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .panel {
+    background: var(--stone2);
+    border: 1px solid var(--stone3);
+    border-left: 3px solid var(--gold);
+    padding: 12px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+
+  .panel-title {
+    font-family: 'IM Fell English', serif;
+    color: var(--gold);
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--stone3);
+  }
+
+  #stats-panel .stat-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    margin-bottom: 5px;
+    color: var(--text);
+  }
+
+  .stat-bar {
+    height: 4px;
+    background: var(--stone3);
+    margin-bottom: 8px;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .stat-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+
+  .hp-fill { background: linear-gradient(90deg, var(--red), #e74c3c); }
+  .mp-fill { background: linear-gradient(90deg, var(--blue), #3498db); }
+
+  #inventory-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    margin-top: 4px;
+  }
+
+  .inv-slot {
+    width: 40px;
+    height: 40px;
+    background: var(--stone);
+    border: 1px solid var(--stone3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.1s;
+    position: relative;
+  }
+
+  .inv-slot:hover { border-color: var(--gold); transform: scale(1.05); }
+  .inv-slot.active { border-color: var(--gold2); box-shadow: 0 0 6px rgba(201,168,76,0.4); }
+  .inv-slot.empty { opacity: 0.3; }
+
+  #log-panel { }
+
+  #log-messages {
+    font-size: 0.68rem;
+    line-height: 1.5;
+    color: var(--dim);
+    min-height: 1.2em;
+  }
+
+  .log-entry { border-left: 2px solid var(--stone3); padding-left: 6px; animation: fadeIn 0.3s ease; }
+  .log-entry.important { color: var(--gold); border-left-color: var(--gold); }
+  .log-entry.danger { color: var(--red); border-left-color: var(--red); }
+  .log-entry.pickup { color: var(--green); border-left-color: var(--green); }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: translateX(0); } }
+
+  #message-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(10,8,6,0.88);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    gap: 16px;
+  }
+
+  #message-overlay h2 {
+    font-family: 'IM Fell English', serif;
+    color: var(--gold);
+    font-size: 1.8rem;
+    text-shadow: 0 0 20px rgba(201,168,76,0.5);
+  }
+
+  #message-overlay p {
+    color: var(--text);
+    font-size: 0.8rem;
+    text-align: center;
+    max-width: 280px;
+    line-height: 1.6;
+  }
+
+  #message-overlay .btn {
+    background: var(--stone3);
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.8rem;
+    padding: 8px 24px;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    transition: background 0.2s, box-shadow 0.2s;
+  }
+
+  #message-overlay .btn:hover {
+    background: var(--stone);
+    box-shadow: 0 0 10px rgba(201,168,76,0.3);
+  }
+
+  #puzzle-panel {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(10,8,6,0.92);
+    z-index: 9;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 20px;
+  }
+
+  #puzzle-panel.active { display: flex; }
+
+  #shop-body {
+    max-height: 220px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin-top: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--stone3) transparent;
+  }
+  #shop-body::-webkit-scrollbar { width: 4px; }
+  #shop-body::-webkit-scrollbar-track { background: transparent; }
+  #shop-body::-webkit-scrollbar-thumb { background: var(--stone3); border-radius: 2px; }
+  #shop-body.collapsed { display: none; }
+  #shop-items { display: flex; flex-direction: column; gap: 4px; }
+  .shop-item {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--stone); border: 1px solid var(--stone3);
+    padding: 6px 8px; cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .shop-item:hover { border-color: var(--gold); }
+  .shop-item .s-emoji { font-size: 1.1rem; min-width: 22px; text-align:center; }
+  .shop-item .s-info { flex:1; min-width:0; }
+  .shop-item .s-name {
+    font-size: 0.65rem;
+    color: var(--text);
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .shop-item .s-name span {
+    display: inline-block;
+  }
+  .shop-item:hover .s-name span {
+    animation: name-scroll 3s linear infinite;
+  }
+  @keyframes name-scroll {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+  .shop-item .s-desc { font-size: 0.55rem; color: var(--dim); }
+  .shop-item .s-price { font-size: 0.65rem; color: var(--gold); min-width: 36px; text-align:right; flex-shrink:0; }
+  .shop-item.cant-afford { opacity: 0.4; cursor: not-allowed; }
+  .shop-item.sold { opacity: 0.2; pointer-events: none; }
+  .shop-close { font-family: 'Share Tech Mono', monospace; font-size: 0.6rem; color: var(--dim); cursor: pointer; letter-spacing: 0.08em; text-align:center; }
+  .shop-close:hover { color: var(--gold); }
+
+  #puzzle-panel h3 {
+    font-family: 'IM Fell English', serif;
+    color: var(--gold);
+    font-size: 1.2rem;
+  }
+
+  #puzzle-text {
+    color: var(--text);
+    font-size: 0.75rem;
+    text-align: center;
+    max-width: 280px;
+    line-height: 1.7;
+    font-style: italic;
+  }
+
+  #puzzle-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    max-width: 260px;
+  }
+
+  .puzzle-opt {
+    background: var(--stone2);
+    border: 1px solid var(--stone3);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.72rem;
+    padding: 8px 12px;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.2s, color 0.2s;
+    letter-spacing: 0.05em;
+  }
+
+  .puzzle-opt:hover { border-color: var(--gold); color: var(--gold); }
+
+  #controls-hint {
+    font-size: 0.6rem;
+    color: var(--dim);
+    text-align: center;
+    letter-spacing: 0.05em;
+  }
+
+  #floor-indicator {
+    font-size: 0.7rem;
+    color: var(--dim);
+    text-align: center;
+    letter-spacing: 0.1em;
+  }
+</style>
+</head>
+<body>
+
+<div style="position:relative;z-index:1">
+  <div id="title">SLITHERER</div>
+  <div id="subtitle">Slither through cursed dungeons. Collect relics. Solve riddles. Survive.</div>
+  <div id="game-wrapper">
+    <div>
+      <div id="canvas-container">
+        <canvas id="gameCanvas" width="540" height="540"></canvas>
+        <div id="message-overlay">
+          <h2>SLITHERER</h2>
+          <p>Slither through cursed dungeons, collect relics, and solve ancient riddles.</p>
+          <p style="color:var(--dim);font-size:0.65rem">Hold WASD / Arrow keys to move. [SPACE] to use item.</p>
+          <div id="mode-select" style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:240px">
+            <div style="font-size:0.6rem;color:var(--dim);text-align:center;letter-spacing:0.1em">— SOLO —</div>
+            <button class="btn" id="btn-normal" style="display:flex;flex-direction:column;align-items:center;padding:8px 20px">
+              <span>⚔ NORMAL</span>
+              <span style="font-size:0.6rem;color:var(--dim);margin-top:2px">5 floors · classic challenge</span>
+            </button>
+            <button class="btn" id="btn-infinite" style="display:flex;flex-direction:column;align-items:center;padding:8px 20px">
+              <span>∞ INFINITE</span>
+              <span style="font-size:0.6rem;color:var(--dim);margin-top:2px">endless floors · how far can you go?</span>
+            </button>
+            <div style="font-size:0.6rem;color:var(--dim);text-align:center;letter-spacing:0.1em;margin-top:4px">— CO-OP (SAME KEYBOARD) —</div>
+            <button class="btn" id="btn-coop-normal" style="display:flex;flex-direction:column;align-items:center;padding:8px 20px;border-color:#4a7acc">
+              <span style="color:#79c0ff">👥 CO-OP NORMAL</span>
+              <span style="font-size:0.6rem;color:var(--dim);margin-top:2px">P1: WASD · P2: Arrows · 5 floors</span>
+            </button>
+            <button class="btn" id="btn-coop-infinite" style="display:flex;flex-direction:column;align-items:center;padding:8px 20px;border-color:#4a7acc">
+              <span style="color:#79c0ff">👥 CO-OP INFINITE</span>
+              <span style="font-size:0.6rem;color:var(--dim);margin-top:2px">P1: WASD · P2: Arrows · endless</span>
+            </button>
+          </div>
+        </div>
+        <div id="puzzle-panel">
+          <h3>⚙ ANCIENT RIDDLE ⚙</h3>
+          <div id="puzzle-text"></div>
+          <div id="puzzle-options"></div>
+        </div>
+      </div>
+      <div id="controls-hint" style="margin-top:8px">HOLD WASD / ARROWS — MOVE &nbsp;|&nbsp; [SPACE] — USE ITEM</div>
+      <div id="floor-indicator" style="margin-top:4px">FLOOR 1 — THE FORGOTTEN HALLS</div>
+    </div>
+
+    <div id="sidebar">
+      <div class="panel" id="stats-panel">
+        <div class="panel-title">Vitals</div>
+        <div class="stat-row"><span>HP</span><span id="hp-text">10 / 10</span></div>
+        <div class="stat-bar"><div class="stat-fill hp-fill" id="hp-bar" style="width:100%"></div></div>
+        <div class="stat-row"><span>GOLD</span><span id="score-text">0</span></div>
+        <div class="stat-row"><span>DUNGEONS</span><span id="len-text">0</span></div>
+        <div class="stat-row"><span>FLOOR</span><span id="floor-text">1</span></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Inventory</div>
+        <div id="inventory-grid">
+          <div class="inv-slot empty" id="slot-0">·</div>
+          <div class="inv-slot empty" id="slot-1">·</div>
+          <div class="inv-slot empty" id="slot-2">·</div>
+          <div class="inv-slot empty" id="slot-3">·</div>
+          <div class="inv-slot empty" id="slot-4">·</div>
+          <div class="inv-slot empty" id="slot-5">·</div>
+          <div class="inv-slot empty" id="slot-6">·</div>
+          <div class="inv-slot empty" id="slot-7">·</div>
+        </div>
+        <div style="font-size:0.6rem;color:var(--dim);margin-top:8px" id="item-desc">Select an item to use it</div>
+      </div>
+
+      <div class="panel" id="log-panel">
+        <div class="panel-title">Chronicle</div>
+        <div id="log-messages"></div>
+      </div>
+
+      <div class="panel" id="p2-panel" style="display:none">
+        <div class="panel-title" style="color:#4a7acc">Player 2 <span style="float:right;font-size:0.6rem;color:var(--dim)">ARROWS · ENTER=item</span></div>
+        <div class="stat-row"><span>HP</span><span id="p2-hp">3/3</span></div>
+        <div class="stat-bar"><div class="stat-fill" id="p2-hp-bar" style="width:100%;background:linear-gradient(90deg,#2a5aaa,#4a7acc)"></div></div>
+        <div id="p2-inv" style="display:flex;gap:3px;flex-wrap:wrap;margin-top:4px"></div>
+      </div>
+        <div class="panel-title">Compass</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+          <canvas id="compassCanvas" width="48" height="48"></canvas>
+          <div id="compass-text" style="font-size:0.65rem;color:var(--dim)">Finding stairs...</div>
+        </div>
+      </div>
+        <div class="panel-title" id="shop-toggle" style="cursor:pointer;user-select:none">
+          Shop <span id="shop-arrow" style="float:left;margin-right:6px">▼</span>
+          <span style="float:right;color:var(--gold2);font-size:0.7rem">💰 <span id="shop-gold-display">0</span>g</span>
+        </div>
+        <div id="shop-body">
+          <div id="shop-items"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const GRID = 61;
+const VIEW = 30;        // cells visible in viewport
+const CELL = 18;        // px per cell
+const CANVAS_SIZE = VIEW * CELL; // 540px
+const TICK = 180;
+
+// Tile types
+const T = { WALL:0, FLOOR:1, DOOR:2, STAIRS:3, PRESSURE:4, LOCK:5 };
+
+// Items
+// Item types: apple (special), inventory items, and floor loot
+const ITEMS = {
+  // --- Special: auto-collected ---
+  apple:      { emoji:'🍎', name:'Apple',           desc:'+3 HP',                              color:'#e74c3c', auto:true  },
+  coin:       { emoji:'🪙', name:'Gold Coin',        desc:'+10 gold',                           color:'#f1c40f', auto:true  },
+  gem:        { emoji:'💎', name:'Gem',              desc:'+30 gold',                           color:'#1abc9c', auto:true  },
+  chest:      { emoji:'📦', name:'Treasure Chest',  desc:'+50 gold',                           color:'#c9a84c', auto:true  },
+  crown:      { emoji:'👑', name:'Ancient Crown',    desc:'+100 gold',                          color:'#e8c96a', auto:true  },
+  // --- Keys ---
+  key:        { emoji:'🗝️',  name:'Iron Key',        desc:'Opens nearest locked door',          color:'#c9a84c', auto:false },
+  masterkey:  { emoji:'🔑', name:'Master Key',      desc:'Opens all locked doors',             color:'#e8c96a', auto:false },
+  // --- Weapons (multi-use) ---
+  sword:      { emoji:'⚔️',  name:'Runed Sword',     desc:'Kills nearest enemy (5 charges)',    color:'#95a5a6', auto:false },
+  dagger:     { emoji:'🗡️',  name:'Venom Dagger',    desc:'Poisons nearest enemy (3 ticks)',    color:'#27ae60', auto:false },
+  bow:        { emoji:'🏹', name:'Multishot Bow',    desc:'Shoots 3 enemies at once (4 uses)',  color:'#c9a84c', auto:false },
+  flamearrow: { emoji:'🔥', name:'Flame Arrows',     desc:'Burns nearest enemy + 1 adjacent (4 uses)', color:'#e67e22', auto:false },
+  // --- Magic (multi-use) ---
+  freeze:     { emoji:'❄️',  name:'Frost Rune',      desc:'Freezes all enemies (3 uses)',       color:'#3498db', auto:false },
+  teleport:   { emoji:'🌀', name:'Teleport Rune',    desc:'Warp to random tile (3 uses)',       color:'#9b59b6', auto:false },
+  // --- Special one-use ---
+  goldsword:  { emoji:'🌟', name:'Golden Sword',     desc:'Kills ALL enemies, then becomes a Runed Sword (5 charges)', color:'#e8c96a', auto:false },
+  fireball:   { emoji:'💥', name:'Fireball Scroll',  desc:'ONE USE: Incinerates every enemy',   color:'#e74c3c', auto:false },
+  thunderbolt:{ emoji:'⚡', name:'Thunderbolt',      desc:'ONE USE: Strikes 3 random enemies',  color:'#f1c40f', auto:false },
+};
+
+// Riddles
+const RIDDLES = [
+  { text:"I speak without a mouth and hear without ears. I have no body but come alive with wind. What am I?", opts:["A shadow","An echo","A river","A flame"], ans:1 },
+  { text:"The more you take, the more you leave behind. What am I?", opts:["Time","Footsteps","Memories","Gold"], ans:1 },
+  { text:"I have cities but no houses, mountains but no trees, water but no fish. What am I?", opts:["A dream","A painting","A map","A mirror"], ans:2 },
+  { text:"What has keys but no locks, space but no room, and you can enter but can't go inside?", opts:["A castle","A keyboard","A riddle","A book"], ans:1 },
+  { text:"I am always hungry, must always be fed. The finger I touch will soon turn red. What am I?", opts:["A curse","Fire","Poison","A blade"], ans:1 },
+  { text:"The more you have of me, the less you see. What am I?", opts:["Wealth","Darkness","Knowledge","Time"], ans:1 },
+];
+
+const FLOOR_NAMES = [
+  "THE FORGOTTEN HALLS", "CRYPT OF WHISPERS", "THE DEEP DARK",
+  "BONES OF THE ANCIENT", "THE VOID BELOW"
+];
+
+let state = {beamFlash:0, snake:[], enemies:[], items:[], map:[], doors:[], pressurePlates:[], running:false};
+
+function initState() {
+  state = {
+    snake: [{x:2,y:2},{x:1,y:2},{x:0,y:2}],
+    dir: {x:1,y:0},
+    nextDir: {x:1,y:0},
+    hp: 3, maxHp: 3,
+    score: 0,
+    floor: 1,
+    inventory: [],
+    selectedSlot: -1,
+    shielded: false,
+    revealed: false,
+    boosted: false,
+    boostTimer: 0,
+    frozen: false,
+    freezeTimer: 0,
+    dungeonsCleared: 0,
+    lore: 0,
+    coop: false, // same-keyboard co-op mode
+    p2: null,    // player 2 state (snake, dir, hp, inventory) when coop=true
+    beamFlash: 0,
+    moving: false,
+    mode: 'normal', // 'normal' or 'infinite'
+    tick: TICK,
+    running: false,
+    map: [],
+    items: [],    // {x,y,type}
+    enemies: [],  // {x,y,hp,dir,timer}
+    pressurePlates: [], // {x,y,active,targetDoor}
+    doors: [],    // {x,y,open,locked}
+    stairs: {x:0,y:0},
+    pendingPuzzle: null,
+    puzzleActive: false,
+    lastTime: 0,
+    accum: 0,
+    animFrame: null,
+  };
+  generateFloor();
+}
+
+function generateFloor() {
+  const map = [];
+  for(let y=0;y<GRID;y++) { map.push([]); for(let x=0;x<GRID;x++) map[y].push(T.WALL); }
+
+  // Simple BSP-ish room carving
+  const rooms = [];
+  const tryRoom = (attempts) => {
+    for(let a=0;a<attempts;a++){
+      const rw = 4+Math.floor(Math.random()*7);
+      const rh = 4+Math.floor(Math.random()*7);
+      const rx = 1+Math.floor(Math.random()*(GRID-rw-2));
+      const ry = 1+Math.floor(Math.random()*(GRID-rh-2));
+      // check overlap
+      let ok = true;
+      for(const r of rooms){
+        if(rx < r.x+r.w+1 && rx+rw > r.x-1 && ry < r.y+r.h+1 && ry+rh > r.y-1){ ok=false;break; }
+      }
+      if(ok){ rooms.push({x:rx,y:ry,w:rw,h:rh}); return true; }
+    }
+    return false;
+  };
+  const numRooms = 18 + Math.floor(Math.random()*8);
+  for(let i=0;i<numRooms;i++) tryRoom(50);
+
+  // Carve rooms
+  for(const r of rooms){
+    for(let y=r.y;y<r.y+r.h;y++) for(let x=r.x;x<r.x+r.w;x++) map[y][x]=T.FLOOR;
+  }
+
+  // Connect rooms with corridors
+  for(let i=1;i<rooms.length;i++){
+    const a=rooms[i-1], b=rooms[i];
+    const cx1=a.x+Math.floor(a.w/2), cy1=a.y+Math.floor(a.h/2);
+    const cx2=b.x+Math.floor(b.w/2), cy2=b.y+Math.floor(b.h/2);
+    let x=cx1, y=cy1;
+    while(x!==cx2){ map[y][x]=T.FLOOR; x+=Math.sign(cx2-x); }
+    while(y!==cy2){ map[y][x]=T.FLOOR; y+=Math.sign(cy2-y); }
+  }
+
+  state.map = map;
+
+  // Place snake start in first room
+  const sr = rooms[0];
+  state.snake = [
+    {x:sr.x+1, y:sr.y+1},
+    {x:sr.x,   y:sr.y+1},
+    {x:sr.x-1 < 0 ? sr.x : sr.x-1, y:sr.y+1}
+  ];
+  // make sure all snake cells are floor
+  state.snake.forEach(s => { if(s.x>=0&&s.x<GRID&&s.y>=0&&s.y<GRID) map[s.y][s.x]=T.FLOOR; });
+  state.dir = {x:1,y:0};
+  state.nextDir = {x:1,y:0};
+
+  // Place stairs in last room center
+  const er = rooms[rooms.length-1];
+  const stairsCx = er.x+Math.floor(er.w/2);
+  const stairsCy = er.y+Math.floor(er.h/2);
+  state.stairs = {x:stairsCx, y:stairsCy};
+  map[stairsCy][stairsCx] = T.STAIRS; // actually stamp it on the map
+
+  // Place apple right next to stairs (one tile away)
+  const appleOffsets = [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
+  let applePlaced = false;
+  for(const off of appleOffsets){
+    const ax=stairsCx+off.x, ay=stairsCy+off.y;
+    if(ax>=0&&ax<GRID&&ay>=0&&ay<GRID&&map[ay][ax]===T.FLOOR){
+      // Store apple position separately — placed after items array is built
+      state._applePos = {x:ax, y:ay};
+      applePlaced = true;
+      break;
+    }
+  }
+  if(!applePlaced) state._applePos = null;
+
+  // Doors (some locked)
+  state.doors = [];
+  for(let i=1;i<Math.min(rooms.length,4);i++){
+    const r = rooms[i];
+    const dx = r.x+Math.floor(r.w/2);
+    const dy = r.y;
+    if(dy>0 && map[dy-1][dx]===T.FLOOR){
+      const locked = Math.random()<0.4;
+      state.doors.push({x:dx,y:dy,open:false,locked});
+      map[dy][dx] = locked ? T.LOCK : T.DOOR;
+    }
+  }
+
+  // Pressure plates
+  state.pressurePlates = [];
+  if(rooms.length>3){
+    const pr = rooms[2];
+    const px = pr.x+1, py = pr.y+1;
+    const targetDoor = state.doors.find(d=>d.locked);
+    if(targetDoor){
+      state.pressurePlates.push({x:px,y:py,active:false,targetDoor});
+      map[py][px] = T.PRESSURE;
+    }
+  }
+
+  // Enemies
+  state.enemies = [];
+  for(let i=2;i<rooms.length;i++){
+    const r = rooms[i];
+    const ex = r.x+1+Math.floor(Math.random()*(r.w-2));
+    const ey = r.y+1+Math.floor(Math.random()*(r.h-2));
+    if(!(ex===state.stairs.x&&ey===state.stairs.y)){
+      state.enemies.push({x:ex,y:ey,hp:2+(state.floor-1),maxHp:2+(state.floor-1),dir:{x:1,y:0},timer:0});
+    }
+  }
+
+  // Items — random loot only (NO apples here; apple is placed near stairs separately)
+  state.items = [];
+  const lootPool = ['coin','coin','coin','gem','key','sword','dagger','fireball','freeze','teleport','masterkey','chest','crown'];
+  const floorExtras = 3 + Math.floor(Math.random()*3);
+  const usedPositions = new Set();
+  const posKey = (x,y)=>`${x},${y}`;
+
+  const placeItem = (type, forceX, forceY) => {
+    if(forceX !== undefined){
+      state.items.push({x:forceX, y:forceY, type});
+      usedPositions.add(posKey(forceX,forceY));
+      return true;
+    }
+    for(let attempt=0;attempt<40;attempt++){
+      const r = rooms[Math.floor(Math.random()*rooms.length)];
+      const ix = r.x+Math.floor(Math.random()*r.w);
+      const iy = r.y+Math.floor(Math.random()*r.h);
+      if(map[iy][ix]===T.FLOOR && !usedPositions.has(posKey(ix,iy))){
+        state.items.push({x:ix,y:iy,type});
+        usedPositions.add(posKey(ix,iy));
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Place single apple near stairs
+  if(state._applePos) placeItem('apple', state._applePos.x, state._applePos.y);
+
+  // Random loot items
+  for(let i=0;i<floorExtras;i++){
+    placeItem(lootPool[Math.floor(Math.random()*lootPool.length)]);
+  }
+
+  // Generate shop inventory is no longer needed — shop is always the full catalog
+}
+
+// ---- RENDERING ----
+const COLORS = {
+  wall:     '#2a2318',
+  wallEdge: '#332b1e',
+  floor:    '#4a4035',
+  floorAlt: '#423930',
+  door:     '#8B6914',
+  lock:     '#5a3a10',
+  stairs:   '#000000',
+  pressure: '#3d2b6b',
+  snakeHead:'#4a9c4a',
+  snakeBody:'#2a6c2a',
+  snakeTail:'#1a4c1a',
+  enemy:    '#8c2a2a',
+};
+
+function drawGame() {
+  ctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
+
+  // Camera: center viewport on snake head, clamped to map edges
+  const head = state.snake[0] || {x:1,y:1};
+  const halfView = Math.floor(VIEW/2);
+  const camX = Math.max(0, Math.min(GRID - VIEW, head.x - halfView));
+  const camY = Math.max(0, Math.min(GRID - VIEW, head.y - halfView));
+
+  // Helper: world coords -> screen coords
+  const sx = wx => (wx - camX) * CELL;
+  const sy = wy => (wy - camY) * CELL;
+
+  // Draw visible tiles
+  for(let gy = camY; gy < camY + VIEW; gy++) for(let gx = camX; gx < camX + VIEW; gx++){
+    if(gy < 0 || gy >= GRID || gx < 0 || gx >= GRID){ ctx.fillStyle='#000'; ctx.fillRect(sx(gx),sy(gy),CELL,CELL); continue; }
+    const t = state.map[gy][gx];
+    let col;
+    switch(t){
+      case T.WALL:     col = (gx+gy)%2===0?COLORS.wall:COLORS.wallEdge; break;
+      case T.FLOOR:    col = (gx+gy)%2===0?COLORS.floor:COLORS.floorAlt; break;
+      case T.DOOR:     col = COLORS.door; break;
+      case T.LOCK:     col = COLORS.lock; break;
+      case T.STAIRS:   col = COLORS.stairs; break;
+      case T.PRESSURE: col = COLORS.pressure; break;
+      default:         col = COLORS.floor;
+    }
+
+    const px = sx(gx), py = sy(gy);
+    ctx.fillStyle = col;
+    ctx.fillRect(px, py, CELL, CELL);
+
+    // Stone floor texture
+    if(t===T.FLOOR || t===T.PRESSURE){
+      if(gy % 2 === 0){ ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.fillRect(px, py, CELL, 1); }
+      const vOff = (gy % 2 === 0) ? 0 : Math.floor(CELL/2);
+      if((gx*CELL + vOff) % (CELL*2) < 2){ ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.fillRect(px, py, 1, CELL); }
+      ctx.fillStyle='rgba(255,255,255,0.04)';
+      ctx.fillRect(px+1, py+1, CELL-3, CELL-3);
+    }
+
+    // Wall raised look
+    if(t===T.WALL){
+      ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.fillRect(px, py, CELL, 2);
+      ctx.fillStyle='rgba(0,0,0,0.3)';
+      ctx.fillRect(px, py+CELL-2, CELL, 2);
+      ctx.fillRect(px+CELL-2, py, 2, CELL);
+    }
+
+    // Stairs — solid black with white arrow
+    if(t===T.STAIRS){
+      ctx.fillStyle='#000'; ctx.fillRect(px,py,CELL,CELL);
+      ctx.fillStyle='#fff'; ctx.font=`bold ${CELL*0.65}px monospace`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('▼', px+CELL/2, py+CELL/2+1);
+    }
+    if(t===T.DOOR){ ctx.font=`${CELL*0.65}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('🚪',px+CELL/2,py+CELL/2); }
+    if(t===T.LOCK){ ctx.font=`${CELL*0.65}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('🔒',px+CELL/2,py+CELL/2); }
+    if(t===T.PRESSURE){ ctx.font=`${CELL*0.5}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('⚙',px+CELL/2,py+CELL/2); }
+  }
+
+  // Items (only if in viewport)
+  for(const item of state.items){
+    if(item.x < camX || item.x >= camX+VIEW || item.y < camY || item.y >= camY+VIEW) continue;
+    ctx.font=`${CELL*0.7}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(ITEMS[item.type].emoji, sx(item.x)+CELL/2, sy(item.y)+CELL/2);
+  }
+
+  // Enemies (only if in viewport)
+  for(const e of state.enemies){
+    if(e.x < camX || e.x >= camX+VIEW || e.y < camY || e.y >= camY+VIEW) continue;
+    const ex = sx(e.x), ey = sy(e.y);
+    ctx.fillStyle = e.poisoned>0?'#2ecc71':state.frozen?'#5dade2':COLORS.enemy;
+    ctx.beginPath(); ctx.arc(ex+CELL/2, ey+CELL/2, CELL/2-2, 0, Math.PI*2); ctx.fill();
+    ctx.font=`${CELL*0.65}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('💀', ex+CELL/2, ey+CELL/2);
+    const bw=CELL-4, bh=3;
+    ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(ex+2, ey, bw, bh);
+    ctx.fillStyle=COLORS.enemy; ctx.fillRect(ex+2, ey, bw*(e.hp/e.maxHp), bh);
+  }
+
+  // Snake
+  for(let i=state.snake.length-1;i>=0;i--){
+    const s=state.snake[i];
+    if(s.x < camX || s.x >= camX+VIEW || s.y < camY || s.y >= camY+VIEW) continue;
+    const t2 = i===0?'head':i===state.snake.length-1?'tail':'body';
+    ctx.globalAlpha = 1 - (i/state.snake.length)*0.5;
+    ctx.fillStyle = t2==='head'?COLORS.snakeHead:t2==='tail'?COLORS.snakeTail:COLORS.snakeBody;
+    const pad = t2==='head'?1:t2==='tail'?3:2;
+    const bx = sx(s.x), by = sy(s.y);
+    ctx.beginPath(); ctx.roundRect(bx+pad, by+pad, CELL-pad*2, CELL-pad*2, 3); ctx.fill();
+    if(t2==='head'){
+      ctx.globalAlpha=1; ctx.fillStyle='#a0ffa0';
+      ctx.beginPath(); ctx.arc(bx+CELL*0.35, by+CELL*0.35, 2, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(bx+CELL*0.65, by+CELL*0.35, 2, 0, Math.PI*2); ctx.fill();
+    }
+  }
+  ctx.globalAlpha=1;
+
+  // P2 Snake (blue)
+  if(state.coop && state.p2){
+    for(let i=state.p2.snake.length-1;i>=0;i--){
+      const s=state.p2.snake[i];
+      if(s.x<camX||s.x>=camX+VIEW||s.y<camY||s.y>=camY+VIEW) continue;
+      const t2=i===0?'head':i===state.p2.snake.length-1?'tail':'body';
+      ctx.globalAlpha=1-(i/state.p2.snake.length)*0.5;
+      ctx.fillStyle=t2==='head'?'#4a7acc':t2==='tail'?'#1a3a6c':'#2a5aaa';
+      const pad=t2==='head'?1:t2==='tail'?3:2;
+      const bx=sx(s.x),by=sy(s.y);
+      ctx.beginPath();ctx.roundRect(bx+pad,by+pad,CELL-pad*2,CELL-pad*2,3);ctx.fill();
+      if(t2==='head'){
+        ctx.globalAlpha=1;ctx.fillStyle='#a0c0ff';
+        ctx.beginPath();ctx.arc(bx+CELL*0.35,by+CELL*0.35,2,0,Math.PI*2);ctx.fill();
+        ctx.beginPath();ctx.arc(bx+CELL*0.65,by+CELL*0.35,2,0,Math.PI*2);ctx.fill();
+      }
+    }
+    ctx.globalAlpha=1;
+  }
+  const half = CANVAS_SIZE/2;
+  const vignette = ctx.createRadialGradient(half,half,half*0.3,half,half,half*1.1);
+  vignette.addColorStop(0,'transparent');
+  vignette.addColorStop(1,'rgba(0,0,0,0.6)');
+  ctx.fillStyle=vignette; ctx.fillRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
+
+  // Golden sword beam flash
+  if(state.beamFlash>0){
+    ctx.fillStyle=`rgba(255,230,80,${state.beamFlash/8*0.7})`;
+    ctx.fillRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
+    state.beamFlash--;
+  }
+}
+
+// ---- GAME LOGIC ----
+function moveSnake() {
+  state.dir = state.nextDir;
+  const head = state.snake[0];
+  const nx = head.x + state.dir.x;
+  const ny = head.y + state.dir.y;
+
+  // Boundary — just block, no damage
+  if(nx<0||nx>=GRID||ny<0||ny>=GRID){ log('Blocked by the dungeon boundary.'); return; }
+
+  const tile = state.map[ny][nx];
+
+  // Wall collision — just block, no damage
+  if(tile===T.WALL){ return; }
+
+  // Locked door
+  if(tile===T.LOCK){
+    const hasKey = state.inventory.find(i=>i&&i.type==='key');
+    if(hasKey){
+      useItem(state.inventory.indexOf(hasKey));
+      openDoor(nx,ny);
+      log('You unlocked the door with your key!','important');
+    } else {
+      log('This door is locked. You need a key.','danger');
+      reverseSnake();
+      return;
+    }
+  }
+
+  // Door
+  if(tile===T.DOOR){
+    const door = state.doors.find(d=>d.x===nx&&d.y===ny);
+    if(door&&!door.open){ door.open=true; state.map[ny][nx]=T.FLOOR; log('The door creaks open.'); }
+  }
+
+  // Stairs
+  if(tile===T.STAIRS || (nx===state.stairs.x && ny===state.stairs.y)){
+    nextFloor();
+    return;
+  }
+
+  // Self collision — block movement
+  for(let i=1;i<state.snake.length-1;i++){
+    if(state.snake[i].x===nx && state.snake[i].y===ny){
+      log('Your own body blocks the way.');
+      return;
+    }
+  }
+
+  // Move snake
+  state.snake.unshift({x:nx,y:ny});
+
+  // Check pressure plate
+  const plate = state.pressurePlates.find(p=>p.x===nx&&p.y===ny);
+  if(plate&&!plate.active){
+    plate.active=true;
+    if(plate.targetDoor){
+      plate.targetDoor.locked=false;
+      const d = plate.targetDoor;
+      state.map[d.y][d.x]=T.DOOR;
+      log('Click! A distant door unlocks...','important');
+    }
+  }
+
+  // Check item pickup
+  const itemIdx = state.items.findIndex(i=>i.x===nx&&i.y===ny);
+  if(itemIdx>=0){
+    const item = state.items[itemIdx];
+    pickupItem(item);
+    state.items.splice(itemIdx,1);
+    // Grow snake
+    // (don't remove tail this tick)
+  } else {
+    state.snake.pop(); // normal move, remove tail
+  }
+
+  // Check enemy collision
+  const enemy = state.enemies.find(e=>e.x===nx&&e.y===ny);
+  if(enemy){
+    fightEnemy(enemy);
+    return;
+  }
+
+  // Move enemies
+  moveEnemies();
+
+  // Softlock detection
+  checkSoftlock();
+}
+
+function checkSoftlock() {
+  const head = state.snake[0];
+
+  // Check if ALL 4 neighbours are impassable (fully trapped)
+  const dirs = [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
+  const snakeSet = new Set(state.snake.slice(1).map(s=>`${s.x},${s.y}`));
+  const canMove = dirs.some(d => {
+    const nx = head.x+d.x, ny = head.y+d.y;
+    if(nx<0||nx>=GRID||ny<0||ny>=GRID) return false;
+    const t = state.map[ny][nx];
+    if(t === T.WALL) return false;
+    if(snakeSet.has(`${nx},${ny}`)) return false;
+    return true;
+  });
+
+  if(!canMove){
+    log('⚠ SOFTLOCK: You are completely trapped! Teleporting...','danger');
+    // Find any open floor tile far from current pos
+    let best = null, bestDist = -1;
+    for(let y=1;y<GRID-1;y++) for(let x=1;x<GRID-1;x++){
+      if(state.map[y][x]===T.FLOOR && !snakeSet.has(`${x},${y}`)){
+        const d = Math.abs(x-head.x)+Math.abs(y-head.y);
+        if(d > bestDist){ bestDist=d; best={x,y}; }
+      }
+    }
+    if(best) state.snake[0] = best;
+    return;
+  }
+
+  // Check locked door softlock: ALL locked doors still locked, player has no key
+  // and can't afford one (20g), and there's no reachable floor path to stairs
+  const lockedDoors = state.doors.filter(d=>d.locked);
+  if(lockedDoors.length > 0){
+    const hasKey = state.inventory.some(i=>i&&(i.type==='key'||i.type==='masterkey'));
+    const canBuyKey = state.score >= 20;
+    if(!hasKey && !canBuyKey){
+      // Check if stairs are reachable via flood fill without going through locked doors
+      const reachable = floodFill(head.x, head.y);
+      if(!reachable.has(`${state.stairs.x},${state.stairs.y}`)){
+        log('⚠ SOFTLOCK: Stairs unreachable, no key, no gold! Free key granted.','danger');
+        state.inventory.push({type:'key'});
+        updateInventory();
+      }
+    }
+  }
+}
+
+function floodFill(startX, startY) {
+  const visited = new Set();
+  const queue = [{x:startX, y:startY}];
+  const snakeSet = new Set(state.snake.slice(1).map(s=>`${s.x},${s.y}`));
+  while(queue.length){
+    const {x,y} = queue.shift();
+    const key = `${x},${y}`;
+    if(visited.has(key)) continue;
+    visited.add(key);
+    const dirs = [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
+    for(const d of dirs){
+      const nx=x+d.x, ny=y+d.y;
+      if(nx<0||nx>=GRID||ny<0||ny>=GRID) continue;
+      const t = state.map[ny][nx];
+      if(t===T.WALL||t===T.LOCK) continue;
+      if(snakeSet.has(`${nx},${ny}`)) continue;
+      queue.push({x:nx,y:ny});
+    }
+  }
+  return visited;
+}
+
+function moveEnemies() {
+  const head = state.snake[0];
+  for(const e of state.enemies){
+    // Poison tick
+    if(e.poisoned>0){
+      e.poisoned--;
+      e.hp--;
+      if(e.hp<=0){
+        state.score+=15*state.floor;
+        log('💀 Poisoned enemy perishes!','pickup');
+        state.enemies.splice(state.enemies.indexOf(e),1);
+        updateUI();
+        continue;
+      }
+    }
+    e.timer++;
+    if(e.timer < 3) continue;
+    e.timer = 0;
+    const dx = head.x-e.x, dy = head.y-e.y;
+    let mx=0,my=0;
+    if(Math.abs(dx)>Math.abs(dy)) mx=Math.sign(dx); else my=Math.sign(dy);
+    const nx=e.x+mx, ny=e.y+my;
+    if(nx>=0&&nx<GRID&&ny>=0&&ny<GRID&&state.map[ny][nx]!==T.WALL){
+      e.x=nx; e.y=ny;
+    }
+    if(e.x===head.x && e.y===head.y){ fightEnemy(e); return; }
+  }
+}
+
+function fightEnemy(enemy) {
+  enemy.hp--;
+  if(state.shielded){ state.shielded=false; log('Your shield absorbs the blow!','important'); return; }
+  takeDamage(1, `A skeleton strikes you!`);
+  if(enemy.hp<=0){
+    state.enemies.splice(state.enemies.indexOf(enemy),1);
+    state.score += 15*(state.floor);
+    log('You defeated the skeleton!','important');
+    updateUI();
+  }
+}
+
+function takeDamage(amt, msg) {
+  state.hp = Math.max(0, state.hp - amt);
+  log(msg || `You took ${amt} damage.`, 'danger');
+  updateUI();
+  // Shake canvas
+  canvas.style.transform = 'translateX(3px)';
+  setTimeout(()=>canvas.style.transform='translateX(-3px)',50);
+  setTimeout(()=>canvas.style.transform='',100);
+  if(state.hp<=0) gameOver();
+}
+
+function reverseSnake() {
+  state.snake.reverse();
+  state.dir.x *= -1; state.dir.y *= -1;
+  state.nextDir = {...state.dir};
+}
+
+function openDoor(x,y){
+  state.map[y][x]=T.FLOOR;
+  const door = state.doors.find(d=>d.x===x&&d.y===y);
+  if(door){ door.open=true; door.locked=false; }
+}
+
+// ---- SHOP — always available, full catalog ----
+const SHOP_CATALOG = [
+  { type:'apple',       price: 15 },
+  { type:'key',         price: 20 },
+  { type:'dagger',      price: 25 },
+  { type:'teleport',    price: 30 },
+  { type:'freeze',      price: 35 },
+  { type:'sword',       price: 40 },
+  { type:'masterkey',   price: 55 },
+  { type:'bow',         price: 55 },
+  { type:'flamearrow',  price: 65 },
+  { type:'thunderbolt', price: 70 },
+  { type:'fireball',    price: 80 },
+  { type:'goldsword',   price:120 },
+];
+
+function renderShop() {
+  document.getElementById('shop-gold-display').textContent = state.score;
+  const el = document.getElementById('shop-items');
+  el.innerHTML = '';
+  SHOP_CATALOG.forEach((si, idx) => {
+    const def = ITEMS[si.type];
+    const canAfford = state.score >= si.price;
+    const div = document.createElement('div');
+    div.className = 'shop-item' + (!canAfford ? ' cant-afford' : '');
+    div.innerHTML = `
+      <div class="s-emoji">${def.emoji}</div>
+      <div class="s-info">
+        <div class="s-name"><span>${def.name}&emsp;&emsp;${def.name}&emsp;&emsp;</span></div>
+        <div class="s-desc">${def.desc}</div>
+      </div>
+      <div class="s-price">${si.price}g</div>`;
+    if(canAfford) div.onclick = () => buyItem(idx);
+    el.appendChild(div);
+  });
+}
+
+function buyItem(idx) {
+  const si = SHOP_CATALOG[idx];
+  if(state.score < si.price){ log('Not enough gold!','danger'); return; }
+  if(si.type !== 'apple' && state.inventory.length >= 8){ log('Inventory full!','danger'); return; }
+  state.score -= si.price;
+  if(si.type === 'apple'){
+    state.hp = Math.min(state.maxHp, state.hp + 3);
+    log('🍎 Apple! +3 HP.','pickup');
+    updateUI();
+    return;
+  }
+  const chargeMap = {sword:5, bow:4, flamearrow:4, freeze:3, teleport:3};
+  const entry = chargeMap[si.type]
+    ? {type:si.type, charges:chargeMap[si.type]}
+    : {type:si.type};
+  state.inventory.push(entry);
+  updateInventory();
+  updateUI();
+  renderShop();
+  log(`Bought: ${ITEMS[si.type].name} for ${si.price}g`, 'important');
+}
+
+
+function pickupItem(item){
+  const def = ITEMS[item.type];
+
+  // Auto-collected items
+  if(item.type==='apple'){
+    state.hp = Math.min(state.maxHp, state.hp + 3);
+    state.score += 10;
+    log('🍎 Magical apple! +3 HP.','pickup');
+    updateUI();
+    return;
+  }
+  if(item.type==='coin'){  state.score+=10;  log('🪙 +10 gold.','pickup');  updateUI(); return; }
+  if(item.type==='gem'){   state.score+=30;  log('💎 +30 gold!','pickup');  updateUI(); return; }
+  if(item.type==='chest'){ state.score+=50;  log('📦 Treasure! +50 gold.','pickup'); updateUI(); return; }
+  if(item.type==='crown'){ state.score+=100; log('👑 Ancient Crown! +100 gold.','important'); updateUI(); return; }
+
+  // Add to inventory with charges
+  if(state.inventory.length<8){
+    const chargeMap = {sword:5, bow:4, flamearrow:4, freeze:3, teleport:3};
+    const entry = chargeMap[item.type]
+      ? {type:item.type, charges:chargeMap[item.type]}
+      : {type:item.type};
+    state.inventory.push(entry);
+    updateInventory();
+    log(`Picked up: ${def.name}`, 'pickup');
+  } else {
+    log(`Inventory full! ${def.name} left behind.`,'danger');
+  }
+}
+
+function useItem(idx){
+  const item = state.inventory[idx];
+  if(!item) return;
+  const def = ITEMS[item.type];
+  const head = state.snake[0];
+
+  // Helper: use a charge, return true if item should be removed
+  const useCharge = (msg) => {
+    item.charges = (item.charges||1) - 1;
+    const left = item.charges;
+    log(`${msg} (${left} charge${left!==1?'s':''} left)`,'important');
+    updateInventory();
+    if(left > 0) { updateUI(); return false; } // keep item
+    return true; // remove item
+  };
+
+  let removeItem = true;
+
+  switch(item.type){
+    // --- Keys ---
+    case 'key':
+    case 'masterkey': {
+      const locked = state.doors.filter(d=>d.locked);
+      if(locked.length===0){ log('No locked doors to open.'); return; }
+      if(item.type==='masterkey'){
+        locked.forEach(d=>{ d.locked=false; d.open=true; state.map[d.y][d.x]=T.FLOOR; });
+        log('🔑 Master Key opens ALL locked doors!','important');
+      } else {
+        const target = locked.reduce((a,b)=>(
+          Math.abs(a.x-head.x)+Math.abs(a.y-head.y) < Math.abs(b.x-head.x)+Math.abs(b.y-head.y) ? a : b
+        ));
+        target.locked=false; target.open=true;
+        state.map[target.y][target.x]=T.FLOOR;
+        log('🗝️ Iron Key unlocks a door!','important');
+      }
+      break;
+    }
+    // --- Weapons (with charges) ---
+    case 'sword': {
+      if(state.enemies.length===0){ log('No enemies to strike.'); return; }
+      const nearest = state.enemies.reduce((a,b)=>(
+        Math.abs(a.x-head.x)+Math.abs(a.y-head.y) < Math.abs(b.x-head.x)+Math.abs(b.y-head.y) ? a : b
+      ));
+      state.enemies.splice(state.enemies.indexOf(nearest),1);
+      state.score+=20*state.floor;
+      removeItem = useCharge('⚔️ Runed Sword slays an enemy!');
+      break;
+    }
+    case 'dagger': {
+      if(state.enemies.length===0){ log('No enemies to poison.'); return; }
+      const nearest = state.enemies.reduce((a,b)=>(
+        Math.abs(a.x-head.x)+Math.abs(a.y-head.y) < Math.abs(b.x-head.x)+Math.abs(b.y-head.y) ? a : b
+      ));
+      nearest.poisoned=3;
+      log('🗡️ Venom Dagger strikes! Enemy will wither.','important');
+      break;
+    }
+    case 'bow': {
+      if(state.enemies.length===0){ log('No enemies to shoot.'); return; }
+      const sorted = [...state.enemies].sort((a,b)=>
+        (Math.abs(a.x-head.x)+Math.abs(a.y-head.y)) - (Math.abs(b.x-head.x)+Math.abs(b.y-head.y))
+      );
+      const targets = sorted.slice(0,3);
+      targets.forEach(e=>state.enemies.splice(state.enemies.indexOf(e),1));
+      state.score += 20 * state.floor * targets.length;
+      removeItem = useCharge(`🏹 Multishot! ${targets.length} enemies hit`);
+      break;
+    }
+    case 'flamearrow': {
+      if(state.enemies.length===0){ log('No enemies to burn.'); return; }
+      const nearest = state.enemies.reduce((a,b)=>(
+        Math.abs(a.x-head.x)+Math.abs(a.y-head.y) < Math.abs(b.x-head.x)+Math.abs(b.y-head.y) ? a : b
+      ));
+      // Kill nearest + any adjacent to it
+      const toKill = state.enemies.filter(e=>
+        Math.abs(e.x-nearest.x)<=1 && Math.abs(e.y-nearest.y)<=1
+      );
+      toKill.forEach(e=>state.enemies.splice(state.enemies.indexOf(e),1));
+      state.score += 25 * state.floor * toKill.length;
+      removeItem = useCharge(`🔥 Flame Arrow burns ${toKill.length} enemies`);
+      break;
+    }
+    case 'freeze': {
+      state.frozen=true; state.freezeTimer=180;
+      removeItem = useCharge('❄️ Frost Rune! Enemies frozen');
+      break;
+    }
+    case 'teleport': {
+      let tx,ty,tries=0;
+      do { tx=1+Math.floor(Math.random()*(GRID-2)); ty=1+Math.floor(Math.random()*(GRID-2)); tries++; }
+      while((state.map[ty][tx]!==T.FLOOR||(tx===head.x&&ty===head.y))&&tries<200);
+      if(tries<200) state.snake[0]={x:tx,y:ty};
+      removeItem = useCharge('🌀 Teleport! You vanish');
+      break;
+    }
+    // --- Special one-use ---
+    case 'goldsword': {
+      const count = state.enemies.length;
+      state.enemies = [];
+      state.score += 50 + 30 * count * state.floor;
+      state.beamFlash = 8;
+      log(`🌟 GOLDEN SWORD! Beam of light annihilates ALL ${count} enemies! +${50+30*count*state.floor} gold`,'important');
+      // Downgrade to regular sword with 5 charges instead of removing
+      item.type = 'sword';
+      item.charges = 5;
+      removeItem = false;
+      updateInventory();
+      break;
+    }
+    case 'fireball': {
+      const before = state.enemies.length;
+      state.enemies = [];
+      state.score += 25*state.floor*Math.max(1,before);
+      log(`💥 FIREBALL! All ${before} enemies incinerated!`,'important');
+      break;
+    }
+    case 'thunderbolt': {
+      if(state.enemies.length===0){ log('No enemies to strike.'); return; }
+      const shuffled = [...state.enemies].sort(()=>Math.random()-0.5);
+      const targets = shuffled.slice(0, Math.min(3, state.enemies.length));
+      targets.forEach(e=>state.enemies.splice(state.enemies.indexOf(e),1));
+      state.score += 20 * state.floor * targets.length;
+      log(`⚡ THUNDERBOLT! Strikes ${targets.length} random enemies!`,'important');
+      break;
+    }
+    default:
+      log(`Used ${def.name}.`);
+  }
+
+  if(removeItem){
+    state.inventory.splice(idx,1);
+    state.inventory = state.inventory.filter(Boolean);
+    updateInventory();
+  }
+  updateUI();
+}
+
+function nextFloor(){
+  state.floor++;
+  state.score += 50 * state.floor;
+  state.hp = Math.min(state.maxHp, state.hp + 3);
+
+  log(`You descend to floor ${state.floor}...`,'important');
+  if(state.mode === 'normal' && state.floor > 5){ victory(); return; }
+
+  showPuzzle();
+}
+
+function showPuzzle(){
+  const riddle = RIDDLES[Math.floor(Math.random()*RIDDLES.length)];
+  state.pendingPuzzle = riddle;
+  state.puzzleActive = true;
+  state.running = false;
+  state.moving = false;
+
+  document.getElementById('puzzle-text').textContent = riddle.text;
+  const optsEl = document.getElementById('puzzle-options');
+  optsEl.innerHTML='';
+  riddle.opts.forEach((opt,i)=>{
+    const btn = document.createElement('button');
+    btn.className='puzzle-opt';
+    btn.textContent=`${['A','B','C','D'][i]}) ${opt}`;
+    btn.onclick=()=>answerPuzzle(i);
+    optsEl.appendChild(btn);
+  });
+  document.getElementById('puzzle-panel').classList.add('active');
+}
+
+function answerPuzzle(idx){
+  document.getElementById('puzzle-panel').classList.remove('active');
+  state.puzzleActive=false;
+  if(idx===state.pendingPuzzle.ans){
+    log('Correct! The rune glows — a reward appears.','important');
+    const reward = ['sword','key','fireball','freeze','teleport','masterkey'][Math.floor(Math.random()*6)];
+    const chargeMap = {sword:5, freeze:3, teleport:3};
+    const entry = chargeMap[reward] ? {type:reward, charges:chargeMap[reward]} : {type:reward};
+    if(state.inventory.length<8){ state.inventory.push(entry); updateInventory(); }
+  } else {
+    takeDamage(3,'Wrong! An ancient curse burns through you!');
+  }
+  state.pendingPuzzle=null;
+  if(state.mode === 'normal' && state.floor > 5){ victory(); return; }
+  generateFloor();
+  state.running=true;
+  document.getElementById('floor-indicator').textContent = `FLOOR ${state.floor} — ${FLOOR_NAMES[(state.floor-1)%FLOOR_NAMES.length]}`;
+  document.getElementById('floor-text').textContent = state.floor;
+  updateUI();
+  requestAnimationFrame(loop);
+}
+
+function gameOver(){
+  state.running=false;
+  cancelAnimationFrame(state.animFrame);
+  showModeSelect('⚰ YOU PERISHED ⚰', `Floor ${state.floor} — Gold: ${state.score}`);
+}
+
+function victory(){
+  state.running=false;
+  cancelAnimationFrame(state.animFrame);
+  showModeSelect('⚔ VICTORY ⚔', `Escaped the dungeon!<br>Final Gold: ${state.score} · Floors: ${state.floor-1}`);
+}
+
+// ---- UI ----
+function drawCompass() {
+  const cc = document.getElementById('compassCanvas');
+  if(!cc || !state.stairs || !state.snake[0]) return;
+  const cx = cc.getContext('2d');
+  const W = 48, H = 48, cx2 = W/2, cy2 = H/2;
+
+  cx.clearRect(0,0,W,H);
+
+  // Background circle
+  cx.fillStyle = '#1e1a16';
+  cx.beginPath(); cx.arc(cx2,cy2,22,0,Math.PI*2); cx.fill();
+  cx.strokeStyle = '#3a3430'; cx.lineWidth = 2;
+  cx.beginPath(); cx.arc(cx2,cy2,22,0,Math.PI*2); cx.stroke();
+
+  // Cardinal letters
+  cx.fillStyle = '#8a7a60'; cx.font = 'bold 7px monospace'; cx.textAlign='center'; cx.textBaseline='middle';
+  cx.fillText('N', cx2, cy2-14);
+  cx.fillText('S', cx2, cy2+14);
+  cx.fillText('E', cx2+14, cy2);
+  cx.fillText('W', cx2-14, cy2);
+
+  // Calculate angle to stairs
+  const head = state.snake[0];
+  const dx = state.stairs.x - head.x;
+  const dy = state.stairs.y - head.y;
+  const angle = Math.atan2(dy, dx);
+  const dist = Math.round(Math.sqrt(dx*dx + dy*dy));
+
+  // Needle pointing to stairs
+  const needleLen = 14;
+  const nx = cx2 + Math.cos(angle) * needleLen;
+  const ny = cy2 + Math.sin(angle) * needleLen;
+  const bx = cx2 - Math.cos(angle) * 6;
+  const by = cy2 - Math.sin(angle) * 6;
+
+  // Tail (opposite, grey)
+  cx.strokeStyle = '#5a4a3a'; cx.lineWidth = 2;
+  cx.beginPath(); cx.moveTo(cx2,cy2); cx.lineTo(bx,by); cx.stroke();
+
+  // Arrow (gold, pointing to stairs)
+  cx.strokeStyle = '#c9a84c'; cx.lineWidth = 2.5;
+  cx.beginPath(); cx.moveTo(cx2,cy2); cx.lineTo(nx,ny); cx.stroke();
+
+  // Arrowhead
+  const headLen = 5, headAngle = 0.4;
+  cx.fillStyle = '#c9a84c';
+  cx.beginPath();
+  cx.moveTo(nx, ny);
+  cx.lineTo(nx - headLen*Math.cos(angle-headAngle), ny - headLen*Math.sin(angle-headAngle));
+  cx.lineTo(nx - headLen*Math.cos(angle+headAngle), ny - headLen*Math.sin(angle+headAngle));
+  cx.closePath(); cx.fill();
+
+  // Center dot
+  cx.fillStyle = '#e8c96a';
+  cx.beginPath(); cx.arc(cx2,cy2,3,0,Math.PI*2); cx.fill();
+
+  // Distance text
+  const label = dist <= 2 ? '▼ Here!' : `${dist} steps`;
+  document.getElementById('compass-text').textContent = `Stairs: ${label}`;
+  document.getElementById('compass-text').style.color = dist <= 5 ? '#c9a84c' : 'var(--dim)';
+}
+
+function updateUI(){
+  document.getElementById('hp-text').textContent=`${state.hp} / ${state.maxHp}`;
+  document.getElementById('hp-bar').style.width=`${(state.hp/state.maxHp)*100}%`;
+  document.getElementById('len-text').textContent=state.dungeonsCleared||0;
+  document.getElementById('score-text').textContent=state.score;
+  document.getElementById('floor-text').textContent=state.floor;
+  document.getElementById('shop-gold-display').textContent=state.score;
+  renderShop();
+  drawCompass();
+}
+
+function updateInventory(){
+  for(let i=0;i<8;i++){
+    const slot = document.getElementById(`slot-${i}`);
+    const item = state.inventory[i];
+    if(item){
+      const charges = item.type==='sword' && item.charges !== undefined ? item.charges : null;
+      slot.innerHTML = ITEMS[item.type].emoji + (charges !== null ? `<span style="position:absolute;bottom:1px;right:2px;font-size:0.55rem;color:var(--gold);font-family:'Share Tech Mono',monospace;">${charges}</span>` : '');
+      slot.style.position = 'relative';
+      slot.classList.remove('empty');
+      slot.onclick=()=>{ useItem(i); document.getElementById('item-desc').textContent=`${ITEMS[item.type].name}: ${ITEMS[item.type].desc}`; };
+      slot.title=`${ITEMS[item.type].name}: ${ITEMS[item.type].desc}`;
+    } else {
+      slot.innerHTML='·';
+      slot.classList.add('empty');
+      slot.onclick=null;
+    }
+  }
+}
+
+function log(msg, type=''){
+  const el = document.getElementById('log-messages');
+  el.innerHTML = `<div class="log-entry${type?' '+type:''}">${msg}</div>`;
+}
+
+// ---- INPUT: hold-to-move ----
+const DIRS_P1 = {
+  w:{x:0,y:-1},s:{x:0,y:1},a:{x:-1,y:0},d:{x:1,y:0},
+  W:{x:0,y:-1},S:{x:0,y:1},A:{x:-1,y:0},D:{x:1,y:0},
+};
+const DIRS_P2 = {
+  ArrowUp:{x:0,y:-1},ArrowDown:{x:0,y:1},ArrowLeft:{x:-1,y:0},ArrowRight:{x:1,y:0},
+};
+const DIRS = {...DIRS_P1, ...DIRS_P2};
+
+let heldKey = null;
+let heldKeyP2 = null;
+
+document.addEventListener('keydown', e => {
+  if(state.puzzleActive) return;
+
+  // P2 arrow key input (only in coop)
+  if(state.coop && state.p2 && DIRS_P2[e.key]){
+    const d = DIRS_P2[e.key];
+    if(heldKeyP2 !== e.key){
+      heldKeyP2 = e.key;
+      if(!(d.x === -state.p2.dir.x && d.y === -state.p2.dir.y)){
+        state.p2.nextDir = d;
+        state.p2.moving = true;
+      }
+    }
+    e.preventDefault();
+    return;
+  }
+
+  // P1 WASD input
+  const d = DIRS_P1[e.key];
+  if(d){
+    if(heldKey !== e.key){
+      heldKey = e.key;
+      if(!(d.x === -state.dir.x && d.y === -state.dir.y)){
+        state.nextDir = d;
+        state.moving = true;
+      }
+    }
+    e.preventDefault();
+  }
+  if(e.key === ' '){
+    if(state.inventory.length > 0) useItem(0);
+    e.preventDefault();
+  }
+  if(e.key === 'Enter'){
+    if(state.coop && state.p2 && state.p2.inventory.length > 0) useItemP2(0);
+    e.preventDefault();
+  }
+});
+
+document.addEventListener('keyup', e => {
+  if(DIRS_P2[e.key]){ if(heldKeyP2===e.key){ heldKeyP2=null; if(state.p2) state.p2.moving=false; } }
+  if(DIRS_P1[e.key]){ if(heldKey===e.key){ heldKey=null; state.moving=false; } }
+});
+
+function initP2(){
+  // Spawn P2 near the end of the first room
+  const startX = Math.min(GRID-3, state.snake[0].x + 4);
+  const startY = state.snake[0].y;
+  state.p2 = {
+    snake: [{x:startX,y:startY},{x:startX-1,y:startY},{x:startX-2,y:startY}],
+    dir: {x:1,y:0},
+    nextDir: {x:1,y:0},
+    hp: 3, maxHp: 3,
+    inventory: [],
+    selectedSlot: -1,
+    moving: false,
+    accum: 0,
+  };
+}
+
+function moveP2(){
+  if(!state.p2 || !state.p2.moving) return;
+  const p2 = state.p2;
+  p2.dir = p2.nextDir;
+  const head = p2.snake[0];
+  const nx = head.x + p2.dir.x;
+  const ny = head.y + p2.dir.y;
+
+  if(nx<0||nx>=GRID||ny<0||ny>=GRID) return;
+  const tile = state.map[ny][nx];
+  if(tile===T.WALL) return;
+
+  // Stairs
+  if(tile===T.STAIRS || (nx===state.stairs.x && ny===state.stairs.y)){
+    nextFloor(); return;
+  }
+
+  // Self collision
+  for(let i=1;i<p2.snake.length-1;i++){
+    if(p2.snake[i].x===nx && p2.snake[i].y===ny) return;
+  }
+
+  p2.snake.unshift({x:nx,y:ny});
+
+  // Item pickup
+  const itemIdx = state.items.findIndex(i=>i.x===nx&&i.y===ny);
+  if(itemIdx>=0){
+    const item = state.items[itemIdx];
+    pickupItemP2(item);
+    state.items.splice(itemIdx,1);
+  } else {
+    p2.snake.pop();
+  }
+
+  // Enemy collision
+  const enemy = state.enemies.find(e=>e.x===nx&&e.y===ny);
+  if(enemy){
+    p2.hp--;
+    log(`P2 hit by enemy! HP: ${p2.hp}`,'danger');
+    state.enemies.splice(state.enemies.indexOf(enemy),1);
+    if(p2.hp<=0){ log('💀 Player 2 has fallen!','danger'); state.p2=null; }
+    updateP2UI();
+  }
+}
+
+function pickupItemP2(item){
+  const def = ITEMS[item.type];
+  if(item.type==='apple'){ state.p2.hp=Math.min(state.p2.maxHp,state.p2.hp+3); log('P2: 🍎 +3 HP','pickup'); updateP2UI(); return; }
+  if(item.type==='coin'){  state.score+=10; log('P2: 🪙 +10g','pickup'); updateUI(); return; }
+  if(item.type==='gem'){   state.score+=30; log('P2: 💎 +30g','pickup'); updateUI(); return; }
+  if(item.type==='chest'){ state.score+=50; log('P2: 📦 +50g','pickup'); updateUI(); return; }
+  if(item.type==='crown'){ state.score+=100; log('P2: 👑 +100g','important'); updateUI(); return; }
+  if(state.p2.inventory.length<8){
+    const chargeMap={sword:5,bow:4,flamearrow:4,freeze:3,teleport:3};
+    state.p2.inventory.push(chargeMap[item.type]?{type:item.type,charges:chargeMap[item.type]}:{type:item.type});
+    log(`P2 picked up: ${def.name}`,'pickup');
+    updateP2UI();
+  }
+}
+
+function useItemP2(idx){
+  if(!state.p2) return;
+  const item = state.p2.inventory[idx];
+  if(!item) return;
+  // Simple: just use sword/key etc via same useItem logic but for p2
+  // For now treat as same logic but sourced from p2 inventory
+  state.p2.inventory.splice(idx,1);
+  log(`P2 used ${ITEMS[item.type].name}`,'important');
+  updateP2UI();
+}
+
+function updateP2UI(){
+  const panel = document.getElementById('p2-panel');
+  if(!panel) return;
+  if(!state.p2){ panel.style.display='none'; return; }
+  panel.style.display='block';
+  document.getElementById('p2-hp').textContent=`${state.p2.hp}/${state.p2.maxHp}`;
+  document.getElementById('p2-hp-bar').style.width=`${(state.p2.hp/state.p2.maxHp)*100}%`;
+  const inv = document.getElementById('p2-inv');
+  inv.innerHTML = state.p2.inventory.slice(0,4).map(i=>
+    `<div class="inv-slot" style="width:28px;height:28px;font-size:0.9rem">${ITEMS[i.type]?.emoji||'?'}</div>`
+  ).join('') || '<span style="color:var(--dim);font-size:0.6rem">empty</span>';
+}
+
+
+function loop(ts){
+  if(!state.running) return;
+  const dt = ts - state.lastTime;
+  state.lastTime = ts;
+  state.accum += dt;
+
+  // Freeze timer
+  if(state.frozen){
+    state.freezeTimer--;
+    if(state.freezeTimer<=0){ state.frozen=false; log('The ice melts. Enemies stir again.'); }
+  }
+
+  // Boost timer
+  if(state.boosted){
+    state.boostTimer--;
+    if(state.boostTimer<=0){ state.boosted=false; state.tick=TICK; log('Swift Boots wore off.'); }
+  }
+
+  if(state.moving && state.accum >= state.tick){
+    state.accum -= state.tick;
+    if(heldKey && DIRS_P1[heldKey]){
+      const d = DIRS_P1[heldKey];
+      if(!(d.x === -state.dir.x && d.y === -state.dir.y)) state.nextDir = d;
+    }
+    moveSnake();
+    updateUI();
+  } else if(!state.moving){
+    state.accum = 0;
+  }
+
+  // P2 independent tick
+  if(state.coop && state.p2){
+    state.p2.accum += dt;
+    if(state.p2.moving && state.p2.accum >= TICK){
+      state.p2.accum -= TICK;
+      if(heldKeyP2 && DIRS_P2[heldKeyP2]){
+        const d = DIRS_P2[heldKeyP2];
+        if(!(d.x===-state.p2.dir.x&&d.y===-state.p2.dir.y)) state.p2.nextDir=d;
+      }
+      moveP2();
+      updateP2UI();
+    } else if(!state.p2.moving){
+      state.p2.accum = 0;
+    }
+  }
+
+  drawGame();
+  state.animFrame = requestAnimationFrame(loop);
+}
+
+function startGame(mode='normal', coop=false){
+  if(state.animFrame) cancelAnimationFrame(state.animFrame);
+  document.getElementById('message-overlay').style.display='none';
+  document.getElementById('puzzle-panel').classList.remove('active');
+  initState();
+  state.mode = mode;
+  state.coop = coop;
+  if(coop) initP2();
+  document.getElementById('p2-panel').style.display = coop ? 'block' : 'none';
+  updateUI();
+  updateInventory();
+  if(coop) updateP2UI();
+  const modeLabel = coop ? `👥 CO-OP ${mode.toUpperCase()}` : `⚔ ${mode.toUpperCase()}`;
+  log(`${modeLabel} — Find the stairs ▼`, 'important');
+  if(coop) log('P1: WASD · SPACE=item  |  P2: Arrows · ENTER=item');
+  renderShop();
+  document.getElementById('floor-indicator').textContent = `FLOOR 1 — ${FLOOR_NAMES[0]}`;
+  state.running=true;
+  state.lastTime=performance.now();
+  requestAnimationFrame(loop);
+}
+
+function showModeSelect(title, subtitle) {
+  const ov = document.getElementById('message-overlay');
+  ov.innerHTML=`<h2>${title}</h2>
+    <p>${subtitle}</p>
+    <div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:240px">
+      <div style="font-size:0.6rem;color:var(--dim);text-align:center;letter-spacing:0.1em">— SOLO —</div>
+      <button class="btn" id="btn-normal" style="display:flex;flex-direction:column;align-items:center;padding:8px 20px">
+        <span>⚔ NORMAL</span>
+        <span style="font-size:0.6rem;color:var(--dim);margin-top:2px">5 floors · classic challenge</span>
+      </button>
+      <button class="btn" id="btn-infinite" style="display:flex;flex-direction:column;align-items:center;padding:8px 20px">
+        <span>∞ INFINITE</span>
+        <span style="font-size:0.6rem;color:var(--dim);margin-top:2px">endless floors · how far can you go?</span>
+      </button>
+      <div style="font-size:0.6rem;color:var(--dim);text-align:center;letter-spacing:0.1em;margin-top:4px">— CO-OP (SAME KEYBOARD) —</div>
+      <button class="btn" id="btn-coop-normal" style="display:flex;flex-direction:column;align-items:center;padding:8px 20px;border-color:#4a7acc">
+        <span style="color:#79c0ff">👥 CO-OP NORMAL</span>
+        <span style="font-size:0.6rem;color:var(--dim);margin-top:2px">P1: WASD · P2: Arrows · 5 floors</span>
+      </button>
+      <button class="btn" id="btn-coop-infinite" style="display:flex;flex-direction:column;align-items:center;padding:8px 20px;border-color:#4a7acc">
+        <span style="color:#79c0ff">👥 CO-OP INFINITE</span>
+        <span style="font-size:0.6rem;color:var(--dim);margin-top:2px">P1: WASD · P2: Arrows · endless</span>
+      </button>
+    </div>`;
+  ov.style.display='flex';
+  document.getElementById('btn-normal').addEventListener('click',()=>startGame('normal',false));
+  document.getElementById('btn-infinite').addEventListener('click',()=>startGame('infinite',false));
+  document.getElementById('btn-coop-normal').addEventListener('click',()=>startGame('normal',true));
+  document.getElementById('btn-coop-infinite').addEventListener('click',()=>startGame('infinite',true));
+}
+
+// Wire up buttons
+document.getElementById('btn-normal').addEventListener('click',()=>startGame('normal',false));
+document.getElementById('btn-infinite').addEventListener('click',()=>startGame('infinite',false));
+document.getElementById('btn-coop-normal').addEventListener('click',()=>startGame('normal',true));
+document.getElementById('btn-coop-infinite').addEventListener('click',()=>startGame('infinite',true));
+document.getElementById('shop-toggle').addEventListener('click', () => {
+  const body = document.getElementById('shop-body');
+  const arrow = document.getElementById('shop-arrow');
+  const collapsed = body.classList.toggle('collapsed');
+  arrow.textContent = collapsed ? '▶' : '▼';
+});
+
+// Initial draw
+drawGame();
+</script>
+</body>
+</html>
